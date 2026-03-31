@@ -11,11 +11,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: [
-    "@xenova/transformers",
-    "onnxruntime-node",
-    "pdfjs-dist",
-  ],
+  serverExternalPackages: ["pdfjs-dist"],
   experimental: {
     serverActions: {
       bodySizeLimit: "12mb",

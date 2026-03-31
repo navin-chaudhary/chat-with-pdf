@@ -1,12 +1,22 @@
-import { type FeatureExtractionPipeline, pipeline } from "@xenova/transformers";
+import {
+  env,
+  type FeatureExtractionPipeline,
+  pipeline,
+} from "@xenova/transformers";
 
 let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
 
 async function getExtractor(): Promise<FeatureExtractionPipeline> {
   if (!extractorPromise) {
+    // Force WASM backend in serverless/prod to avoid native onnxruntime-node
+    // shared-library loading failures (e.g. missing libonnxruntime.so).
+    env.backends.onnx.wasm.proxy = false;
+    env.backends.onnx.wasm.numThreads = 1;
+
     extractorPromise = pipeline(
       "feature-extraction",
       "Xenova/all-MiniLM-L6-v2",
+      { device: "wasm" },
     );
   }
   return extractorPromise;
