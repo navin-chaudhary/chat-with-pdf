@@ -1,6 +1,7 @@
 import { ChatWithPdf } from "@/components/ChatWithPdf";
 import { authOptions } from "@/lib/auth-options";
 import { getServerSession } from "next-auth";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export default async function HomePage() {
@@ -24,12 +25,12 @@ export default async function HomePage() {
               </p>
             </div>
           </div>
-          <a
+          <Link
             href="/api/auth/signout"
             className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
           >
             Sign out
-          </a>
+          </Link>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
