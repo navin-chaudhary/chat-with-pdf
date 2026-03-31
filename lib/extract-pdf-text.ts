@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
 
@@ -12,22 +13,29 @@ let pdfjsCached: any = null;
 async function getPdfjsFromDisk() {
   if (pdfjsCached) return pdfjsCached;
 
-  const pdfMain = path.join(
-    process.cwd(),
-    "node_modules",
-    "pdfjs-dist",
-    "legacy",
-    "build",
-    "pdf.mjs",
-  );
-  const workerFile = path.join(
-    process.cwd(),
-    "node_modules",
-    "pdfjs-dist",
-    "legacy",
-    "build",
-    "pdf.worker.mjs",
-  );
+  const root = path.join(process.cwd(), "node_modules", "pdfjs-dist");
+  const candidates = {
+    pdfMain: [
+      path.join(root, "legacy", "build", "pdf.mjs"),
+      path.join(root, "build", "pdf.mjs"),
+      path.join(root, "legacy", "build", "pdf.min.mjs"),
+      path.join(root, "build", "pdf.min.mjs"),
+    ],
+    workerFile: [
+      path.join(root, "legacy", "build", "pdf.worker.mjs"),
+      path.join(root, "build", "pdf.worker.mjs"),
+      path.join(root, "legacy", "build", "pdf.worker.min.mjs"),
+      path.join(root, "build", "pdf.worker.min.mjs"),
+    ],
+  };
+
+  const pdfMain = candidates.pdfMain.find((p) => fs.existsSync(p));
+  const workerFile = candidates.workerFile.find((p) => fs.existsSync(p));
+  if (!pdfMain || !workerFile) {
+    throw new Error(
+      "pdfjs-dist runtime files not found. Reinstall dependencies and redeploy.",
+    );
+  }
 
   const pdfUrl = pathToFileURL(pdfMain).href;
   pdfjsCached = await import(/* webpackIgnore: true */ pdfUrl);
