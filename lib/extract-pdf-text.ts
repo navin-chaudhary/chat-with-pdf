@@ -7,6 +7,8 @@ let pdfjsCached: any = null;
 
 async function getPdfjs() {
   if (pdfjsCached) return pdfjsCached;
+  // Must load before pdfjs-dist: pdf.mjs polyfills DOMMatrix from @napi-rs/canvas at import time.
+  await import("@napi-rs/canvas");
   pdfjsCached = await import("pdfjs-dist/legacy/build/pdf.mjs");
   return pdfjsCached;
 }

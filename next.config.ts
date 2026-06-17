@@ -11,12 +11,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["pdfjs-dist"],
+  serverExternalPackages: ["pdfjs-dist", "@napi-rs/canvas"],
   outputFileTracingIncludes: {
     "/api/upload": [
-      "./node_modules/pdfjs-dist/legacy/build/**/*",
-      "./node_modules/pdfjs-dist/standard_fonts/**/*",
-      "./node_modules/pdfjs-dist/cmaps/**/*",
+      "./node_modules/pdfjs-dist/**/*",
+      "./node_modules/@napi-rs/canvas/**/*",
+      "./node_modules/@napi-rs/canvas-linux-x64-gnu/**/*",
+      "./node_modules/@napi-rs/canvas-linux-arm64-gnu/**/*",
     ],
   },
   experimental: {
