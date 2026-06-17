@@ -1,46 +1,13 @@
-import fs from "fs";
-import path from "path";
-import { pathToFileURL } from "url";
-
 /**
- * Turbopack still traces static `import from "pdfjs-dist/..."` and bundles pdf.js,
- * which breaks worker resolution (`./pdf.worker.mjs` → `.next/server/chunks/`).
- * Loading pdf.mjs via runtime `file://` import forces Node to use the real package on disk.
+ * pdf.js on the server: static import + disableWorker so Vercel file tracing can
+ * include pdfjs-dist (dynamic file:// imports are omitted from serverless bundles).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let pdfjsCached: any = null;
 
-async function getPdfjsFromDisk() {
+async function getPdfjs() {
   if (pdfjsCached) return pdfjsCached;
-
-  const root = path.join(process.cwd(), "node_modules", "pdfjs-dist");
-  const candidates = {
-    pdfMain: [
-      path.join(root, "legacy", "build", "pdf.mjs"),
-      path.join(root, "build", "pdf.mjs"),
-      path.join(root, "legacy", "build", "pdf.min.mjs"),
-      path.join(root, "build", "pdf.min.mjs"),
-    ],
-    workerFile: [
-      path.join(root, "legacy", "build", "pdf.worker.mjs"),
-      path.join(root, "build", "pdf.worker.mjs"),
-      path.join(root, "legacy", "build", "pdf.worker.min.mjs"),
-      path.join(root, "build", "pdf.worker.min.mjs"),
-    ],
-  };
-
-  const pdfMain = candidates.pdfMain.find((p) => fs.existsSync(p));
-  const workerFile = candidates.workerFile.find((p) => fs.existsSync(p));
-  if (!pdfMain || !workerFile) {
-    throw new Error(
-      "pdfjs-dist runtime files not found. Reinstall dependencies and redeploy.",
-    );
-  }
-
-  const pdfUrl = pathToFileURL(pdfMain).href;
-  pdfjsCached = await import(/* webpackIgnore: true */ pdfUrl);
-  pdfjsCached.GlobalWorkerOptions.workerSrc = pathToFileURL(workerFile).href;
-
+  pdfjsCached = await import("pdfjs-dist/legacy/build/pdf.mjs");
   return pdfjsCached;
 }
 
@@ -76,11 +43,12 @@ function textFromPageItems(
  * Extract plain text from a PDF buffer (server-side Node only).
  */
 export async function extractPdfText(buffer: Buffer): Promise<string> {
-  const pdfjs = await getPdfjsFromDisk();
+  const pdfjs = await getPdfjs();
 
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(buffer),
     useSystemFonts: true,
+    disableWorker: true,
     verbosity: pdfjs.VerbosityLevel.ERRORS,
   });
   const pdf = await loadingTask.promise;
