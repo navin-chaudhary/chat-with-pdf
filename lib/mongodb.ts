@@ -37,6 +37,9 @@ export async function getDbWithIndexes() {
     await db
       .collection("documents")
       .createIndex({ userId: 1, createdAt: -1 });
+    await db
+      .collection("chats")
+      .createIndex({ userId: 1, updatedAt: -1 });
     indexesEnsured = true;
   }
   return db;

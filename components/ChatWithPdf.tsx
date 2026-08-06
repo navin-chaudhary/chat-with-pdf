@@ -5,29 +5,50 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Message = { role: "user" | "assistant"; content: string };
 
-export function ChatWithPdf({ className = "" }: { className?: string }) {
-  const [documentId, setDocumentId] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+export type ChatWithPdfInitial = {
+  chatId?: string | null;
+  documentId?: string | null;
+  fileName?: string | null;
+  messages?: Message[];
+  readOnly?: boolean;
+};
+
+export function ChatWithPdf({
+  className = "",
+  initial,
+}: {
+  className?: string;
+  initial?: ChatWithPdfInitial;
+}) {
+  const [chatId, setChatId] = useState<string | null>(initial?.chatId ?? null);
+  const [documentId, setDocumentId] = useState<string | null>(
+    initial?.documentId ?? null,
+  );
+  const [fileName, setFileName] = useState<string | null>(
+    initial?.fileName ?? null,
+  );
   const [chunkCount, setChunkCount] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [chatting, setChatting] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(initial?.messages ?? []);
   const [lastSources, setLastSources] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [question, setQuestion] = useState("");
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
+  const readOnly = initial?.readOnly === true;
 
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, chatting]);
 
   const onFile = useCallback(async (file: File | null) => {
-    if (!file) return;
+    if (!file || readOnly) return;
     setError(null);
     setUploading(true);
     setMessages([]);
     setLastSources([]);
+    setChatId(null);
     try {
       const fd = new FormData();
       fd.set("file", file);
@@ -45,11 +66,11 @@ export function ChatWithPdf({ className = "" }: { className?: string }) {
     } finally {
       setUploading(false);
     }
-  }, []);
+  }, [readOnly]);
 
   const sendQuestion = useCallback(async () => {
     const q = question.trim();
-    if (!documentId || !q || chatting) return;
+    if (!documentId || !q || chatting || readOnly) return;
     setError(null);
     setChatting(true);
     setQuestion("");
@@ -58,10 +79,11 @@ export function ChatWithPdf({ className = "" }: { className?: string }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentId, question: q }),
+        body: JSON.stringify({ documentId, question: q, chatId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Chat failed");
+      if (typeof data.chatId === "string") setChatId(data.chatId);
       setLastSources(data.sourcePreviews ?? []);
       setMessages((m) => [...m, { role: "assistant", content: data.answer }]);
     } catch (e) {
@@ -75,17 +97,23 @@ export function ChatWithPdf({ className = "" }: { className?: string }) {
     } finally {
       setChatting(false);
     }
-  }, [documentId, question, chatting]);
+  }, [documentId, question, chatting, chatId, readOnly]);
 
   return (
     <div className={className}>
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
         <div className="space-y-1">
           <h1 className="text-3xl font-semibold tracking-tight text-zinc-100 sm:text-4xl">
-            How can I help with your document?
+            {readOnly
+              ? "Chat history"
+              : initial?.chatId
+                ? "Continue this chat"
+                : "How can I help with your document?"}
           </h1>
           <p className="text-sm text-zinc-400">
-            Upload a PDF below and ask anything about its content.
+            {readOnly
+              ? "Previous questions and answers from this conversation."
+              : "Upload a PDF below and ask anything about its content."}
           </p>
           {fileName && documentId && (
             <p className="text-xs text-zinc-500">
@@ -142,54 +170,56 @@ export function ChatWithPdf({ className = "" }: { className?: string }) {
             <div ref={scrollAnchorRef} className="h-px w-full" aria-hidden />
           </div>
 
-          <div className="border-t border-zinc-800 bg-zinc-950/85 p-3 sm:p-4">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && void sendQuestion()}
-                placeholder={
-                  documentId
-                    ? "Ask a question about this document..."
-                    : "Upload a PDF first"
-                }
-                disabled={!documentId || chatting}
-                className="flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-600/60 focus:ring-2 focus:ring-emerald-600/25"
-              />
-              <button
-                type="button"
-                onClick={() => void sendQuestion()}
-                disabled={!documentId || chatting || !question.trim()}
-                className="shrink-0 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-950/30 transition hover:bg-emerald-500 disabled:pointer-events-none disabled:opacity-40"
-              >
-                Send
-              </button>
-            </div>
+          {!readOnly && (
+            <div className="border-t border-zinc-800 bg-zinc-950/85 p-3 sm:p-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void sendQuestion()}
+                  placeholder={
+                    documentId
+                      ? "Ask a question about this document..."
+                      : "Upload a PDF first"
+                  }
+                  disabled={!documentId || chatting}
+                  className="flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-600/60 focus:ring-2 focus:ring-emerald-600/25"
+                />
+                <button
+                  type="button"
+                  onClick={() => void sendQuestion()}
+                  disabled={!documentId || chatting || !question.trim()}
+                  className="shrink-0 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-950/30 transition hover:bg-emerald-500 disabled:pointer-events-none disabled:opacity-40"
+                >
+                  Send
+                </button>
+              </div>
 
-            <div className="mt-3">
-              <input
-                ref={uploadInputRef}
-                type="file"
-                accept=".pdf,application/pdf"
-                className="hidden"
-                disabled={uploading}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void onFile(f);
-                  e.target.value = "";
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => uploadInputRef.current?.click()}
-                disabled={uploading}
-                className="w-full rounded-xl border border-dashed border-zinc-700 bg-zinc-900/50 px-3 py-2.5 text-left text-sm text-zinc-300 transition hover:border-emerald-600/50 hover:bg-zinc-900 disabled:opacity-60"
-              >
-                {uploading ? "Indexing PDF..." : "Add document (PDF)"}
-              </button>
+              <div className="mt-3">
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void onFile(f);
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => uploadInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full rounded-xl border border-dashed border-zinc-700 bg-zinc-900/50 px-3 py-2.5 text-left text-sm text-zinc-300 transition hover:border-emerald-600/50 hover:bg-zinc-900 disabled:opacity-60"
+                >
+                  {uploading ? "Indexing PDF..." : "Add document (PDF)"}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {lastSources.length > 0 && (

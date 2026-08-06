@@ -14,7 +14,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  if (path === "/" && !token) {
+  const isProtected =
+    path === "/" ||
+    path === "/profile" ||
+    path === "/chats" ||
+    path.startsWith("/chats/");
+
+  if (isProtected && !token) {
     const login = new URL("/login", req.url);
     login.searchParams.set("callbackUrl", path);
     return NextResponse.redirect(login);
@@ -28,5 +34,13 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/login", "/signup"],
+  matcher: [
+    "/",
+    "/profile",
+    "/chats",
+    "/chats/:path*",
+    "/dashboard/:path*",
+    "/login",
+    "/signup",
+  ],
 };

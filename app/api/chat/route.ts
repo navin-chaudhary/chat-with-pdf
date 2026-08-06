@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth-options";
+import { createOrAppendChat } from "@/lib/db/chats-repo";
 import { getUserPdfDocument } from "@/lib/db/documents-repo";
 import { embedText } from "@/lib/embeddings";
 import { answerWithContext } from "@/lib/groq-chat";
@@ -22,6 +23,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const documentId = body.documentId as string | undefined;
     const question = body.question as string | undefined;
+    const chatId =
+      typeof body.chatId === "string" && body.chatId.trim()
+        ? body.chatId.trim()
+        : null;
 
     if (!documentId || typeof question !== "string" || !question.trim()) {
       return NextResponse.json(
@@ -38,18 +43,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const qEmb = await embedText(question.trim());
+    const trimmed = question.trim();
+    const qEmb = await embedText(trimmed);
     const top = topKSimilarMMR(qEmb, doc.chunks, TOP_K);
     const answer = await answerWithContext(
-      question.trim(),
+      trimmed,
       top.map((c) => c.text),
     );
+    const sourcePreviews = top.map((c) =>
+      c.text.length > 220 ? `${c.text.slice(0, 220)}…` : c.text,
+    );
+
+    const saved = await createOrAppendChat({
+      userId,
+      chatId,
+      documentId,
+      fileName: doc.fileName,
+      userMessage: trimmed,
+      assistantMessage: answer,
+      sourcePreviews,
+    });
 
     return NextResponse.json({
       answer,
-      sourcePreviews: top.map((c) =>
-        c.text.length > 220 ? `${c.text.slice(0, 220)}…` : c.text,
-      ),
+      sourcePreviews,
+      chatId: saved.chatId,
     });
   } catch (e) {
     console.error(e);
